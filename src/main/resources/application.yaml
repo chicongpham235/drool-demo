@@ -1,0 +1,14 @@
+server:
+  port: 8080
+  servlet:
+    contextPath: /api
+
+spring:
+  application:
+    name: map-properties-service
+  main:
+    allow-bean-definition-overriding: true
+  profiles:
+    active: local
+  config:
+    import: optional:file:.env.${spring.profiles.active}[.properties]

@@ -1,0 +1,3 @@
+drools:
+  fee-cal:
+    drl-path: ${DRL_PATH}
