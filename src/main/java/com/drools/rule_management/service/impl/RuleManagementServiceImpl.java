@@ -15,8 +15,6 @@ import com.drools.rule_management.producer.MQTTv5ProducerService;
 import com.drools.rule_management.service.RuleManagementService;
 import com.drools.rule_management.utils.RuleDroolsUtils;
 
-import java.util.UUID;
-
 @Service
 public class RuleManagementServiceImpl implements RuleManagementService {
 

@@ -4,8 +4,6 @@ import com.drools.rule_management.dto.drool.ConditionDTO;
 import com.drools.rule_management.dto.drool.DroolRuleDTO;
 import com.drools.rule_management.dto.drool.ThenActionDTO;
 import com.drools.rule_management.dto.drool.WhenGroupDTO;
-import com.drools.rule_management.model.Customer;
-import com.drools.rule_management.model.Transaction;
 
 import java.util.*;
 import java.util.regex.Matcher;
