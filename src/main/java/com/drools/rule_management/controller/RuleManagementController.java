@@ -16,7 +16,7 @@ import java.util.List;
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/drools-rule")
+@RequestMapping("/rule-management")
 @CrossOrigin(origins = "*")
 public class RuleManagementController extends BaseClass {
 
@@ -28,7 +28,7 @@ public class RuleManagementController extends BaseClass {
     @Autowired
     RuleManagementService ruleManagementService;
 
-    @PostMapping("/upload")
+    @PostMapping("")
     public ResponseEntity<?> upload(@Valid @RequestBody List<DroolRuleDTO> rules) {
         Boolean isUploadSuccess = ruleManagementService.upload(rules);
         return ResponseEntity.ok(isUploadSuccess);
