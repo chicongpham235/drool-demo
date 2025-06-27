@@ -13,7 +13,8 @@ import com.drools.rule_management.dto.drool.DroolRuleDTO;
 import com.drools.rule_management.module.DomainEvent;
 import com.drools.rule_management.producer.MQTTv5ProducerService;
 import com.drools.rule_management.service.RuleManagementService;
-import com.drools.rule_management.utils.RuleDroolsUtils;
+import com.drools.rule_management.helper.DRLDocument;
+import com.drools.rule_management.helper.DRLHelper;
 
 @Service
 public class RuleManagementServiceImpl implements RuleManagementService {
@@ -28,9 +29,8 @@ public class RuleManagementServiceImpl implements RuleManagementService {
     public Boolean upload(List<DroolRuleDTO> rules) {
         File file = new File(drlPath);
         try (FileWriter writer = new FileWriter(file, false)) {
-            String rulesDRL = RuleDroolsUtils.convert(rules);
-            writer.write(rulesDRL);
-            writer.flush();
+            DRLDocument rulesDRL = DRLHelper.createDRL(rules);
+            rulesDRL.save(drlPath);
             mqttService.send(new DomainEvent("create", "success"));
             return true;
         } catch (IOException e) {

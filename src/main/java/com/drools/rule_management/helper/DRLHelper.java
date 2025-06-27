@@ -1,4 +1,4 @@
-package com.drools.rule_management.utils;
+package com.drools.rule_management.helper;
 
 import com.drools.rule_management.dto.drool.ConditionDTO;
 import com.drools.rule_management.dto.drool.DroolRuleDTO;
@@ -10,20 +10,36 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-public class RuleDroolsUtils {
+/**
+ * Sử dụng DRLDocument để lưu DRL rule tạm thời trong memory thay vì
+ * StringBuilder thuần.
+ */
+public class DRLHelper {
 
-    public static String convert(List<DroolRuleDTO> rules) {
-        StringBuilder drl = new StringBuilder();
-        // drl.append("package rules;\n\n");
-        // drl.append("import ").append(Transaction.class.getName()).append(";\n");
-        // drl.append("import ").append(Customer.class.getName()).append(";\n");
+    private static DRLDocument drl;
+
+    public static void init() {
+        drl = new DRLDocument();
+    }
+
+    public static DRLDocument getDrl() {
+        if (drl == null) {
+            init();
+        }
+        return drl;
+    }
+
+    public static DRLDocument createDRL(List<DroolRuleDTO> rules) {
+        DRLDocument drl = getDrl();
+        // drl.appendLine("package rules;");
+        // drl.appendLine("import ...");
 
         for (DroolRuleDTO rule : rules) {
-            drl.append("rule \"").append(rule.getName()).append("\"\n");
+            drl.appendLine("rule \"" + rule.getName() + "\"");
             if (rule.getSalience() != null) {
-                drl.append("    salience ").append(rule.getSalience()).append("\n");
+                drl.appendLine("    salience " + rule.getSalience());
             }
-            drl.append("when\n");
+            drl.appendLine("when");
 
             // Mapping: Map object name to variable name (for references)
             Map<String, String> objectVarMap = new HashMap<>();
@@ -35,37 +51,25 @@ public class RuleDroolsUtils {
                 String var = object.substring(0, 1).toLowerCase() + (varSeq++);
                 objectVarMap.put(object, var);
 
-                drl.append("    $").append(var).append(" : ").append(object).append("(fee == null)\n");
+                drl.appendLine("    $" + var + " : " + object + "(fee == null)");
             } else {
                 for (WhenGroupDTO whenGroup : whenGroups) {
                     String object = whenGroup.getObject();
                     String var = object.substring(0, 1).toLowerCase() + (varSeq++);
                     objectVarMap.put(object, var);
 
-                    drl.append("    $").append(var).append(" : ").append(object);
+                    StringBuilder line = new StringBuilder("    $" + var + " : " + object);
 
                     List<String> constraints = new ArrayList<>();
-                    if (whenGroup.getConditions() != null && whenGroup.getConditions().size() > 0) {
+                    if (whenGroup.getConditions() != null && !whenGroup.getConditions().isEmpty()) {
                         for (ConditionDTO cond : whenGroup.getConditions()) {
                             String expr;
-                            // if (cond.getValueRef() != null && !cond.getValueRef().isEmpty()) {
-                            // // Parse valueRef: e.g. Transaction.customerId
-                            // String[] parts = cond.getValueRef().split("\\.");
-                            // String refObj = parts[0];
-                            // String refField = parts[1];
-                            // String refVar = objectVarMap.getOrDefault(refObj, refObj.substring(0,
-                            // 1).toLowerCase());
-                            // expr = cond.getField() + " " + cond.getOperator() + " $" + refVar + "." +
-                            // refField;
-                            // }
                             if (cond.getValue() != null) {
                                 String value = cond.getValue();
-                                // Check if value is a number
                                 if (value.matches("-?\\d+(\\.\\d+)?")) {
                                     expr = cond.getField() + " " + cond.getOperator() + " " + value;
                                 } else {
-                                    expr = cond.getField() + " " + cond.getOperator() + " \"" + value
-                                            + "\"";
+                                    expr = cond.getField() + " " + cond.getOperator() + " \"" + value + "\"";
                                 }
                             } else {
                                 expr = "fee == null";
@@ -73,18 +77,17 @@ public class RuleDroolsUtils {
                             constraints.add(expr);
                         }
                     } else {
-                        // If no conditions, just check if fee is null
                         constraints.add("fee == null");
                     }
 
                     if (!constraints.isEmpty()) {
-                        drl.append("(").append(String.join(", ", constraints)).append(")");
+                        line.append("(").append(String.join(", ", constraints)).append(")");
                     }
-
-                    drl.append("\n");
+                    drl.appendLine(line.toString());
                 }
             }
-            drl.append("then\n");
+
+            drl.appendLine("then");
             if (rule.getThen() != null) {
                 for (ThenActionDTO action : rule.getThen()) {
                     String obj = action.getObject();
@@ -95,17 +98,17 @@ public class RuleDroolsUtils {
                                 .map(param -> replaceFieldReferences(param, objectVarMap))
                                 .collect(Collectors.joining(", "));
                     }
-                    drl.append("    $").append(var).append(".").append(action.getAction())
-                            .append("(").append(paramsStr).append(");\n");
+                    drl.appendLine("    $" + var + "." + action.getAction() + "(" + paramsStr + ");");
                 }
             }
             String transactionVar = objectVarMap.get("Transaction");
             if (transactionVar != null) {
-                drl.append("    update($").append(transactionVar).append(");\n");
+                drl.appendLine("    update($" + transactionVar + ");");
             }
-            drl.append("end\n\n");
+            drl.appendLine("end\n");
         }
-        return drl.toString();
+        DRLHelper.drl = null;
+        return drl;
     }
 
     // Helper to replace possible object.field references in params with
