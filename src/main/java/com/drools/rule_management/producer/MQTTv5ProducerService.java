@@ -9,17 +9,15 @@ import org.eclipse.paho.mqttv5.common.MqttMessage;
 import org.eclipse.paho.mqttv5.common.packet.MqttProperties;
 import org.springframework.stereotype.Service;
 
-import com.drools.rule_management.base.BaseClass;
 import com.drools.rule_management.module.DomainEvent;
 
 @Service
-public class MQTTv5ProducerService extends BaseClass {
+public class MQTTv5ProducerService {
 
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(MQTTv5ProducerService.class);
     private final MqttClient newClient;
 
     public MQTTv5ProducerService(MqttClient newClient) {
-        super.getInstance(MQTTv5ProducerService.class);
-
         this.newClient = newClient;
         newClient.setCallback(new MqttCallback() {
             @Override

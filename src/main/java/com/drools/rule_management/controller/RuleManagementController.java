@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.drools.rule_management.base.BaseClass;
 import com.drools.rule_management.dto.drool.DroolRuleDTO;
 import com.drools.rule_management.service.RuleManagementService;
 
@@ -18,12 +17,7 @@ import jakarta.validation.Valid;
 @RestController
 @RequestMapping("/rule-management")
 @CrossOrigin(origins = "*")
-public class RuleManagementController extends BaseClass {
-
-    @Autowired
-    public RuleManagementController() {
-        super.getInstance(RuleManagementController.class);
-    }
+public class RuleManagementController {
 
     @Autowired
     RuleManagementService ruleManagementService;

@@ -8,12 +8,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.drools.rule_management.base.BaseClass;
-
 import jakarta.annotation.PreDestroy;
 
 @Configuration
-public class MQTTv5ProducerConfig extends BaseClass {
+public class MQTTv5ProducerConfig {
+
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(MQTTv5ProducerConfig.class);
 
     private MqttClient client;
 
@@ -21,10 +21,6 @@ public class MQTTv5ProducerConfig extends BaseClass {
     private String broker;
     @Value("${mqtt.clientId:bidv-drools-rule-management}")
     private String prefixClientId;
-
-    public MQTTv5ProducerConfig() {
-        super.getInstance(MQTTv5ProducerConfig.class);
-    }
 
     @Bean
     public MqttClient clientInstance() throws MqttException {
