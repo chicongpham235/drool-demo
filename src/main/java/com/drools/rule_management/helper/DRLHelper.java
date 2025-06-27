@@ -8,130 +8,145 @@ import com.drools.rule_management.dto.drool.WhenGroupDTO;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 /**
  * Sử dụng DRLDocument để lưu DRL rule tạm thời trong memory thay vì
  * StringBuilder thuần.
  */
+@Component
 public class DRLHelper {
 
-    private static DRLDocument drl;
+    @Value("${drools.fee-cal.variables.globals.flag-name}")
+    private String globalFlagName;
 
-    public static void init() {
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(DRLHelper.class);
+
+    private DRLDocument drl;
+
+    public DRLDocument createDRL(List<DroolRuleDTO> rules) {
         drl = new DRLDocument();
-    }
+        try {
+            drl.appendLine("global java.util.concurrent.atomic.AtomicBoolean " + globalFlagName + ";\n");
+            for (DroolRuleDTO rule : rules) {
+                drl.appendLine("rule \"" + rule.getName() + "\"");
+                if (rule.getSalience() != null) {
+                    drl.appendLine("    salience " + rule.getSalience());
+                }
+                drl.appendLine("when");
+                drl.appendLine("    eval(" + globalFlagName + ".get() == false)");
 
-    public static DRLDocument getDrl() {
-        if (drl == null) {
-            init();
-        }
-        return drl;
-    }
+                // Mapping: Map object name to variable name (for references)
+                Map<String, String> objectVarMap = new HashMap<>();
+                char varSeq = 'a';
 
-    public static DRLDocument createDRL(List<DroolRuleDTO> rules) {
-        DRLDocument drl = getDrl();
-        // drl.appendLine("package rules;");
-        // drl.appendLine("import ...");
-
-        for (DroolRuleDTO rule : rules) {
-            drl.appendLine("rule \"" + rule.getName() + "\"");
-            if (rule.getSalience() != null) {
-                drl.appendLine("    salience " + rule.getSalience());
-            }
-            drl.appendLine("when");
-
-            // Mapping: Map object name to variable name (for references)
-            Map<String, String> objectVarMap = new HashMap<>();
-            char varSeq = 'a';
-
-            List<WhenGroupDTO> whenGroups = rule.getWhen();
-            if (whenGroups == null || whenGroups.isEmpty()) {
-                String object = "Transaction";
-                String var = object.substring(0, 1).toLowerCase() + (varSeq++);
-                objectVarMap.put(object, var);
-
-                drl.appendLine("    $" + var + " : " + object + "(fee == null)");
-            } else {
-                for (WhenGroupDTO whenGroup : whenGroups) {
-                    String object = whenGroup.getObject();
-                    String var = object.substring(0, 1).toLowerCase() + (varSeq++);
-                    objectVarMap.put(object, var);
-
-                    StringBuilder line = new StringBuilder("    $" + var + " : " + object);
-
-                    List<String> constraints = new ArrayList<>();
-                    if (whenGroup.getConditions() != null && !whenGroup.getConditions().isEmpty()) {
-                        for (ConditionDTO cond : whenGroup.getConditions()) {
-                            String expr;
-                            if (cond.getValue() != null) {
-                                String value = cond.getValue();
-                                if (value.matches("-?\\d+(\\.\\d+)?")) {
-                                    expr = cond.getField() + " " + cond.getOperator() + " " + value;
-                                } else {
-                                    expr = cond.getField() + " " + cond.getOperator() + " \"" + value + "\"";
-                                }
-                            } else {
-                                expr = "fee == null";
-                            }
-                            constraints.add(expr);
+                List<WhenGroupDTO> whenGroups = rule.getWhen();
+                if (whenGroups == null || whenGroups.isEmpty()) {
+                    for (ThenActionDTO action : rule.getThen()) {
+                        if (action.getObject() != null) {
+                            String object = action.getObject();
+                            String var = object.substring(0, 1).toLowerCase() + (varSeq++);
+                            objectVarMap.put(object, var);
+                            drl.appendLine("    $" + var + " : " + object + "()");
                         }
-                    } else {
-                        constraints.add("fee == null");
                     }
+                } else {
+                    for (WhenGroupDTO whenGroup : whenGroups) {
+                        String object = whenGroup.getObject();
+                        String var = object.substring(0, 1).toLowerCase() + (varSeq++);
+                        objectVarMap.put(object, var);
 
-                    if (!constraints.isEmpty()) {
-                        line.append("(").append(String.join(", ", constraints)).append(")");
-                    }
-                    drl.appendLine(line.toString());
-                }
-            }
+                        StringBuilder line = new StringBuilder("    $" + var + " : " + object);
 
-            drl.appendLine("then");
-            if (rule.getThen() != null) {
-                for (ThenActionDTO action : rule.getThen()) {
-                    String obj = action.getObject();
-                    String var = objectVarMap.getOrDefault(obj, obj.substring(0, 1).toLowerCase());
-                    String paramsStr = "";
-                    if (action.getParams() != null && !action.getParams().isEmpty()) {
-                        paramsStr = action.getParams().stream()
-                                .map(param -> replaceFieldReferences(param, objectVarMap))
-                                .collect(Collectors.joining(", "));
+                        List<String> constraints = new ArrayList<>();
+                        if (whenGroup.getConditions() != null && !whenGroup.getConditions().isEmpty()) {
+                            for (ConditionDTO cond : whenGroup.getConditions()) {
+                                String expr = "";
+                                if (cond.getValue() != null) {
+                                    String value = cond.getValue();
+                                    if (value.matches("-?\\d+(\\.\\d+)?")) {
+                                        expr = cond.getField() + " " + cond.getOperator() + " " + value;
+                                    } else {
+                                        expr = cond.getField() + " " + cond.getOperator() + " \"" + value + "\"";
+                                    }
+                                }
+                                constraints.add(expr);
+                            }
+                        } else {
+                            constraints.add("");
+                        }
+
+                        if (!constraints.isEmpty()) {
+                            line.append("(").append(String.join(", ", constraints)).append(")");
+                        }
+                        drl.appendLine(line.toString());
                     }
-                    drl.appendLine("    $" + var + "." + action.getAction() + "(" + paramsStr + ");");
                 }
+
+                drl.appendLine("then");
+                drl.appendLine("    " + globalFlagName + ".set(true);");
+                if (rule.getThen() != null) {
+                    for (ThenActionDTO action : rule.getThen()) {
+                        String obj = action.getObject();
+                        String var = objectVarMap.getOrDefault(obj, obj.substring(0, 1).toLowerCase());
+                        String valueExpressionStr = "null";
+                        if (action.getValue() != null) {
+                            valueExpressionStr = replaceFieldReferences(action.getValue(), objectVarMap);
+                        }
+                        drl.appendLine("    $" + var + "." + action.getAction() + "(" + valueExpressionStr + ");");
+                    }
+                }
+                for (Map.Entry<String, String> entry : objectVarMap.entrySet()) {
+                    String obj = entry.getKey();
+                    String var = entry.getValue();
+                    Boolean existKeyInThen = rule.getThen().stream()
+                            .anyMatch(action -> action.getObject() != null && action.getObject().equals(obj));
+                    if (existKeyInThen)
+                        drl.appendLine("    update($" + var + ");");
+                }
+                drl.appendLine("end\n");
             }
-            String transactionVar = objectVarMap.get("Transaction");
-            if (transactionVar != null) {
-                drl.appendLine("    update($" + transactionVar + ");");
-            }
-            drl.appendLine("end\n");
+        } catch (Exception e) {
+            e.printStackTrace();
+            logger.error("Error creating DRL: " + e.getMessage());
+            drl.clear();
+            drl = null;
         }
-        DRLHelper.drl = null;
         return drl;
     }
 
     // Helper to replace possible object.field references in params with
     // $<var>.get<Field>()
     private static String replaceFieldReferences(String expr, Map<String, String> objectVarMap) {
-        // Replace Transaction.amount => $a.getAmount()
-        // Replace Customer.type => $b.getType()
         if (expr == null)
             return "";
+
         for (Map.Entry<String, String> entry : objectVarMap.entrySet()) {
             String obj = entry.getKey();
             String var = entry.getValue();
-            Pattern p = Pattern.compile(obj + "\\.([a-zA-Z_][a-zA-Z0-9_]*)");
-            Matcher matcher = p.matcher(expr);
+
+            // Tìm tất cả field được dùng trong biểu thức
+            Pattern fieldPattern = Pattern.compile("\\b(" + obj + "\\.)?([a-zA-Z_][a-zA-Z0-9_]*)\\b");
+            Matcher matcher = fieldPattern.matcher(expr);
             StringBuffer sb = new StringBuffer();
+
             while (matcher.find()) {
-                String prop = matcher.group(1);
-                String getter = "\\$" + var + ".get" + prop.substring(0, 1).toUpperCase() + prop.substring(1) + "()";
-                matcher.appendReplacement(sb, getter);
+                String field = matcher.group(2);
+                String replacement = "\\$" + var + ".get" + capitalize(field) + "()";
+                matcher.appendReplacement(sb, replacement);
             }
             matcher.appendTail(sb);
             expr = sb.toString();
         }
+
         return expr;
+    }
+
+    private static String capitalize(String s) {
+        if (s == null || s.isEmpty())
+            return s;
+        return s.substring(0, 1).toUpperCase() + s.substring(1);
     }
 }

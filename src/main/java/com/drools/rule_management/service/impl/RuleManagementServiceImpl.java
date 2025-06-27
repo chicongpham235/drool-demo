@@ -25,11 +25,14 @@ public class RuleManagementServiceImpl implements RuleManagementService {
     @Autowired
     MQTTv5ProducerService mqttService;
 
+    @Autowired
+    DRLHelper drlHelper;
+
     @Override
     public Boolean upload(List<DroolRuleDTO> rules) {
         File file = new File(drlPath);
         try (FileWriter writer = new FileWriter(file, false)) {
-            DRLDocument rulesDRL = DRLHelper.createDRL(rules);
+            DRLDocument rulesDRL = drlHelper.createDRL(rules);
             rulesDRL.save(drlPath);
             mqttService.send(new DomainEvent("create", "success"));
             return true;
