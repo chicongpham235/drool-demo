@@ -13,6 +13,8 @@ import org.springframework.context.annotation.Configuration;
 
 import com.drools.rule_management.base.BaseClass;
 
+import jakarta.annotation.Nullable;
+
 @Configuration
 public class DroolsConfig extends BaseClass {
 
@@ -21,7 +23,8 @@ public class DroolsConfig extends BaseClass {
     @Value("${drools.fee-cal.drl-path}")
     private String drlPath;
 
-    @Bean
+    @Bean(name = "kieContainer")
+    @Nullable
     public KieContainer kieContainer() {
         super.getInstance(DroolsConfig.class);
 
@@ -36,6 +39,14 @@ public class DroolsConfig extends BaseClass {
         }
         KieBuilder kb = kieServices.newKieBuilder(kieFileSystem);
         kb.buildAll();
+
+        if (kb.getResults().hasMessages(org.kie.api.builder.Message.Level.ERROR)) {
+            kb.getResults().getMessages(org.kie.api.builder.Message.Level.ERROR)
+                    .forEach(msg -> logger.error("❌ DRL Build Error: {}", msg));
+            logger.warn("⚠️ Drools KieBuilder has errors. Skipping KieContainer init.");
+            return null; // hoặc throw soft exception nếu muốn fail mềm
+        }
+
         KieModule kieModule = kb.getKieModule();
         KieContainer kieContainer = kieServices.newKieContainer(kieModule.getReleaseId());
         return kieContainer;

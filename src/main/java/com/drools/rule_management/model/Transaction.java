@@ -1,5 +1,8 @@
 package com.drools.rule_management.model;
 
+import com.drools.rule_management.enums.ChannelTransaction;
+import com.drools.rule_management.enums.TypeTransaction;
+
 import lombok.Getter;
 import lombok.Setter;
 
@@ -7,7 +10,7 @@ import lombok.Setter;
 @Setter
 public class Transaction {
     private Double amount;
-    private String type;
-    private String channel;
+    private TypeTransaction type;
+    private ChannelTransaction channel;
     private Double fee;
 }

@@ -4,6 +4,9 @@ import com.drools.rule_management.dto.drool.ConditionDTO;
 import com.drools.rule_management.dto.drool.DroolRuleDTO;
 import com.drools.rule_management.dto.drool.ThenActionDTO;
 import com.drools.rule_management.dto.drool.WhenGroupDTO;
+import com.drools.rule_management.model.Customer;
+import com.drools.rule_management.model.Transaction;
+
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -13,9 +16,9 @@ public class RuleDroolsUtils {
 
     public static String convert(List<DroolRuleDTO> rules) {
         StringBuilder drl = new StringBuilder();
-        drl.append("package rules;\n\n");
-        drl.append("import com.drools.rule_management.model.Transaction;\n");
-        drl.append("import com.drools.rule_management.model.Customer;\n\n");
+        // drl.append("package rules;\n\n");
+        // drl.append("import ").append(Transaction.class.getName()).append(";\n");
+        // drl.append("import ").append(Customer.class.getName()).append(";\n");
 
         for (DroolRuleDTO rule : rules) {
             drl.append("rule \"").append(rule.getName()).append("\"\n");
@@ -28,51 +31,61 @@ public class RuleDroolsUtils {
             Map<String, String> objectVarMap = new HashMap<>();
             char varSeq = 'a';
 
-            for (WhenGroupDTO whenGroup : rule.getWhen()) {
-                String object = whenGroup.getObject();
+            List<WhenGroupDTO> whenGroups = rule.getWhen();
+            if (whenGroups == null || whenGroups.isEmpty()) {
+                String object = "Transaction";
                 String var = object.substring(0, 1).toLowerCase() + (varSeq++);
                 objectVarMap.put(object, var);
 
-                drl.append("    $").append(var).append(" : ").append(object);
+                drl.append("    $").append(var).append(" : ").append(object).append("(fee == null)\n");
+            } else {
+                for (WhenGroupDTO whenGroup : whenGroups) {
+                    String object = whenGroup.getObject();
+                    String var = object.substring(0, 1).toLowerCase() + (varSeq++);
+                    objectVarMap.put(object, var);
 
-                List<String> constraints = new ArrayList<>();
-                if (whenGroup.getConditions() != null) {
-                    for (ConditionDTO cond : whenGroup.getConditions()) {
-                        String expr;
-                        // if (cond.getValueRef() != null && !cond.getValueRef().isEmpty()) {
-                        // // Parse valueRef: e.g. Transaction.customerId
-                        // String[] parts = cond.getValueRef().split("\\.");
-                        // String refObj = parts[0];
-                        // String refField = parts[1];
-                        // String refVar = objectVarMap.getOrDefault(refObj, refObj.substring(0,
-                        // 1).toLowerCase());
-                        // expr = cond.getField() + " " + cond.getOperator() + " $" + refVar + "." +
-                        // refField;
-                        // }
-                        if (cond.getValue() != null) {
-                            String value = cond.getValue();
-                            // Check if value is a number
-                            if (value.matches("-?\\d+(\\.\\d+)?")) {
-                                expr = cond.getField() + " " + cond.getOperator() + " " + value;
+                    drl.append("    $").append(var).append(" : ").append(object);
+
+                    List<String> constraints = new ArrayList<>();
+                    if (whenGroup.getConditions() != null && whenGroup.getConditions().size() > 0) {
+                        for (ConditionDTO cond : whenGroup.getConditions()) {
+                            String expr;
+                            // if (cond.getValueRef() != null && !cond.getValueRef().isEmpty()) {
+                            // // Parse valueRef: e.g. Transaction.customerId
+                            // String[] parts = cond.getValueRef().split("\\.");
+                            // String refObj = parts[0];
+                            // String refField = parts[1];
+                            // String refVar = objectVarMap.getOrDefault(refObj, refObj.substring(0,
+                            // 1).toLowerCase());
+                            // expr = cond.getField() + " " + cond.getOperator() + " $" + refVar + "." +
+                            // refField;
+                            // }
+                            if (cond.getValue() != null) {
+                                String value = cond.getValue();
+                                // Check if value is a number
+                                if (value.matches("-?\\d+(\\.\\d+)?")) {
+                                    expr = cond.getField() + " " + cond.getOperator() + " " + value;
+                                } else {
+                                    expr = cond.getField() + " " + cond.getOperator() + " \"" + value
+                                            + "\"";
+                                }
                             } else {
-                                expr = cond.getField() + " " + cond.getOperator() + " \"" + value + "\"";
+                                expr = "fee == null";
                             }
-                        } else {
-                            expr = cond.getField() + " " + cond.getOperator();
+                            constraints.add(expr);
                         }
-                        constraints.add(expr);
+                    } else {
+                        // If no conditions, just check if fee is null
+                        constraints.add("fee == null");
                     }
-                }
 
-                if (!constraints.isEmpty()) {
-                    drl.append("(").append(String.join(", ", constraints)).append(")");
-                } else {
-                    drl.append("(fee == null)");
-                }
+                    if (!constraints.isEmpty()) {
+                        drl.append("(").append(String.join(", ", constraints)).append(")");
+                    }
 
-                drl.append("\n");
+                    drl.append("\n");
+                }
             }
-
             drl.append("then\n");
             if (rule.getThen() != null) {
                 for (ThenActionDTO action : rule.getThen()) {

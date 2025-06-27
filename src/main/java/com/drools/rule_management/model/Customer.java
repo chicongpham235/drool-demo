@@ -1,5 +1,8 @@
 package com.drools.rule_management.model;
 
+import com.drools.rule_management.enums.TierCustomer;
+import com.drools.rule_management.enums.TypeCustomer;
+
 import lombok.Getter;
 import lombok.Setter;
 
@@ -7,6 +10,6 @@ import lombok.Setter;
 @Setter
 public class Customer {
     private String name;
-    private String type;
-    private String tier;
+    private TypeCustomer type;
+    private TierCustomer tier;
 }

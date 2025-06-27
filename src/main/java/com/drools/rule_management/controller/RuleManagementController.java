@@ -33,7 +33,7 @@ public class RuleManagementController extends BaseClass {
         super.getInstance(RuleManagementController.class);
     }
 
-    @Autowired
+    @Autowired(required = false)
     private KieContainer kieContainer;
 
     @Autowired
@@ -49,13 +49,13 @@ public class RuleManagementController extends BaseClass {
     public Object testDrool() {
         Transaction transaction = new Transaction();
         transaction.setAmount(100000000.00);
-        transaction.setChannel(ChannelTransaction.ONLINE.toString());
-        transaction.setType(TypeTransaction.TRANSFER.toString());
+        transaction.setChannel(ChannelTransaction.ONLINE);
+        transaction.setType(TypeTransaction.TRANSFER);
 
         Customer customer = new Customer();
         customer.setName("PCC");
-        customer.setTier(TierCustomer.DIAMOND.toString());
-        customer.setType(TypeCustomer.CORPORATE.toString());
+        customer.setTier(TierCustomer.DIAMOND);
+        customer.setType(TypeCustomer.CORPORATE);
 
         KieSession kieSession = kieContainer.newKieSession();
         kieSession.insert(transaction);

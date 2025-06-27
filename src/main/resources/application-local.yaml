@@ -1,3 +1,8 @@
 drools:
   fee-cal:
     drl-path: ${DRL_PATH}
+
+mqtt:
+  connection:
+    string: ${MQTT_CONNECTION_STRING:tcp://localhost:18014}
+  clientId: bidv-drools-rule-management
