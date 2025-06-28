@@ -2,7 +2,6 @@ package com.drools.rule_management.service.impl;
 
 import java.io.File;
 import java.io.FileWriter;
-import java.io.IOException;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,7 +35,7 @@ public class RuleManagementServiceImpl implements RuleManagementService {
             rulesDRL.save(drlPath);
             mqttService.send(new DomainEvent("create", "success"));
             return true;
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }

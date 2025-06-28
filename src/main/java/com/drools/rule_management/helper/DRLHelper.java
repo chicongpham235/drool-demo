@@ -24,10 +24,8 @@ public class DRLHelper {
 
     private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(DRLHelper.class);
 
-    private DRLDocument drl;
-
     public DRLDocument createDRL(List<DroolRuleDTO> rules) {
-        drl = new DRLDocument();
+        DRLDocument drl = new DRLDocument();
         try {
             drl.appendLine("global java.util.concurrent.atomic.AtomicBoolean " + globalFlagName + ";\n");
             for (DroolRuleDTO rule : rules) {
@@ -112,8 +110,9 @@ public class DRLHelper {
             e.printStackTrace();
             logger.error("Error creating DRL: " + e.getMessage());
             drl.clear();
-            drl = null;
+            throw new RuntimeException("Error creating DRL: " + e.getMessage());
         }
+        logger.info("DRL content created: {}", drl.getContent());
         return drl;
     }
 
