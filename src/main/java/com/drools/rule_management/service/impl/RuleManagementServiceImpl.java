@@ -18,6 +18,8 @@ import com.drools.rule_management.helper.DRLHelper;
 @Service
 public class RuleManagementServiceImpl implements RuleManagementService {
 
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(RuleManagementService.class);
+
     @Value("${drools.fee-cal.drl-path}")
     private String drlPath;
 
@@ -30,14 +32,17 @@ public class RuleManagementServiceImpl implements RuleManagementService {
     @Override
     public Boolean upload(List<DroolRuleDTO> rules) {
         File file = new File(drlPath);
+        Boolean isUploadSuccess = false;
         try (FileWriter writer = new FileWriter(file, false)) {
             DRLDocument rulesDRL = drlHelper.createDRL(rules);
             rulesDRL.save(drlPath);
-            mqttService.send(new DomainEvent("create", "success"));
-            return true;
+            isUploadSuccess = true;
         } catch (Exception e) {
-            e.printStackTrace();
-            return false;
+            logger.error("Error while uploading rules: " + e.getMessage());
         }
+        if (isUploadSuccess) {
+            mqttService.send(new DomainEvent("create", "success"));
+        }
+        return isUploadSuccess;
     }
 }

@@ -13,6 +13,8 @@ import com.drools.rule_management.service.RuleManagementService;
 
 import java.util.List;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 
 @RestController
 @RequestMapping("/rule-management")
@@ -23,7 +25,7 @@ public class RuleManagementController {
     RuleManagementService ruleManagementService;
 
     @PostMapping("")
-    public ResponseEntity<?> upload(@Valid @RequestBody List<DroolRuleDTO> rules) {
+    public ResponseEntity<?> upload(@RequestBody @Valid @NotEmpty @NotNull List<@NotNull DroolRuleDTO> rules) {
         Boolean isUploadSuccess = ruleManagementService.upload(rules);
         return ResponseEntity.ok(isUploadSuccess);
     }

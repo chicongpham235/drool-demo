@@ -19,10 +19,12 @@ import org.springframework.stereotype.Component;
 @Component
 public class DRLHelper {
 
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(DRLHelper.class);
+    private static final Pattern FIELD_PATTERN = Pattern
+            .compile("\\b([a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*)\\b");
+
     @Value("${drools.fee-cal.variables.globals.flag-name}")
     private String globalFlagName;
-
-    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(DRLHelper.class);
 
     public DRLDocument createDRL(List<DroolRuleDTO> rules) {
         DRLDocument drl = new DRLDocument();
@@ -34,7 +36,6 @@ public class DRLHelper {
                     drl.appendLine("    salience " + rule.getSalience());
                 }
                 drl.appendLine("when");
-                drl.appendLine("    eval(" + globalFlagName + ".get() == false)");
 
                 // Mapping: Map object name to variable name (for references)
                 Map<String, String> objectVarMap = new HashMap<>();
@@ -83,6 +84,8 @@ public class DRLHelper {
                     }
                 }
 
+                drl.appendLine("    eval(" + globalFlagName + ".get() == false)");
+
                 drl.appendLine("then");
                 drl.appendLine("    " + globalFlagName + ".set(true);");
                 if (rule.getThen() != null) {
@@ -91,7 +94,7 @@ public class DRLHelper {
                         String var = objectVarMap.getOrDefault(obj, obj.substring(0, 1).toLowerCase());
                         String valueExpressionStr = "null";
                         if (action.getValue() != null) {
-                            valueExpressionStr = replaceFieldReferences(action.getValue(), objectVarMap);
+                            valueExpressionStr = replaceFieldReferences(action.getValue(), objectVarMap, rule);
                         }
                         drl.appendLine("    $" + var + "." + action.getAction() + "(" + valueExpressionStr + ");");
                     }
@@ -107,32 +110,34 @@ public class DRLHelper {
                 drl.appendLine("end\n");
             }
         } catch (Exception e) {
-            e.printStackTrace();
             logger.error("Error creating DRL: " + e.getMessage());
             drl.clear();
             throw new RuntimeException("Error creating DRL: " + e.getMessage());
         }
-        logger.info("DRL content created: {}", drl.getContent());
+        logger.info("DRL content created successfully");
         return drl;
     }
 
     // Helper to replace possible object.field references in params with
     // $<var>.get<Field>()
-    private static String replaceFieldReferences(String expr, Map<String, String> objectVarMap) {
+    private static String replaceFieldReferences(String expr, Map<String, String> objectVarMap, DroolRuleDTO rule) {
         if (expr == null)
             return "";
 
         for (Map.Entry<String, String> entry : objectVarMap.entrySet()) {
             String obj = entry.getKey();
             String var = entry.getValue();
+            Boolean existKeyInThen = rule.getThen().stream()
+                    .anyMatch(action -> action.getObject() != null && action.getObject().equals(obj));
+            if (!existKeyInThen)
+                continue;
 
             // Tìm tất cả field được dùng trong biểu thức
-            Pattern fieldPattern = Pattern.compile("\\b(" + obj + "\\.)?([a-zA-Z_][a-zA-Z0-9_]*)\\b");
-            Matcher matcher = fieldPattern.matcher(expr);
+            Matcher matcher = FIELD_PATTERN.matcher(expr);
             StringBuffer sb = new StringBuffer();
 
             while (matcher.find()) {
-                String field = matcher.group(2);
+                String field = matcher.group(1);
                 String replacement = "\\$" + var + ".get" + capitalize(field) + "()";
                 matcher.appendReplacement(sb, replacement);
             }

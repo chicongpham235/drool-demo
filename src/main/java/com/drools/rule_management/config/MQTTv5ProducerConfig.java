@@ -34,7 +34,7 @@ public class MQTTv5ProducerConfig {
             client.connect(options);
             logger.info("clientInstance: client = " + client.toString());
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Error while connecting MQTT: " + e.getMessage());
         }
         return client;
     }
