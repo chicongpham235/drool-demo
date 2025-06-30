@@ -1,9 +1,7 @@
 drools:
   fee-cal:
     drl-path: ${DRL_PATH}
-    variables:
-      globals:
-        flag-name: ${FEE_CALC_FLAG_VARIABLE_NAME}
+
 mqtt:
   connection:
     string: ${MQTT_CONNECTION_STRING:tcp://localhost:18014}

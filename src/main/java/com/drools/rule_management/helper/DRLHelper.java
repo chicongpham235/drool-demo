@@ -9,7 +9,6 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,13 +22,9 @@ public class DRLHelper {
     private static final Pattern FIELD_PATTERN = Pattern
             .compile("\\b([a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*)\\b");
 
-    @Value("${drools.fee-cal.variables.globals.flag-name}")
-    private String globalFlagName;
-
     public DRLDocument createDRL(List<DroolRuleDTO> rules) {
         DRLDocument drl = new DRLDocument();
         try {
-            drl.appendLine("global java.util.concurrent.atomic.AtomicBoolean " + globalFlagName + ";\n");
             for (DroolRuleDTO rule : rules) {
                 drl.appendLine("rule \"" + rule.getName() + "\"");
                 if (rule.getSalience() != null) {
@@ -38,60 +33,74 @@ public class DRLHelper {
                 drl.appendLine("when");
 
                 // Mapping: Map object name to variable name (for references)
-                Map<String, String> objectVarMap = new HashMap<>();
+                Map<String, Map<String, Object>> objectVarMap = new HashMap<>();
                 char varSeq = 'a';
 
-                List<WhenGroupDTO> whenGroups = rule.getWhen();
-                if (whenGroups == null || whenGroups.isEmpty()) {
-                    for (ThenActionDTO action : rule.getThen()) {
-                        if (action.getObject() != null) {
-                            String object = action.getObject();
-                            String var = object.substring(0, 1).toLowerCase() + (varSeq++);
-                            objectVarMap.put(object, var);
-                            drl.appendLine("    $" + var + " : " + object + "()");
-                        }
-                    }
-                } else {
-                    for (WhenGroupDTO whenGroup : whenGroups) {
-                        String object = whenGroup.getObject();
-                        String var = object.substring(0, 1).toLowerCase() + (varSeq++);
-                        objectVarMap.put(object, var);
-
-                        StringBuilder line = new StringBuilder("    $" + var + " : " + object);
-
-                        List<String> constraints = new ArrayList<>();
-                        if (whenGroup.getConditions() != null && !whenGroup.getConditions().isEmpty()) {
-                            for (ConditionDTO cond : whenGroup.getConditions()) {
-                                String expr = "";
-                                if (cond.getValue() != null) {
-                                    String value = cond.getValue();
-                                    if (value.matches("-?\\d+(\\.\\d+)?")) {
-                                        expr = cond.getField() + " " + cond.getOperator() + " " + value;
-                                    } else {
-                                        expr = cond.getField() + " " + cond.getOperator() + " \"" + value + "\"";
-                                    }
-                                }
-                                constraints.add(expr);
-                            }
-                        } else {
-                            constraints.add("");
-                        }
-
-                        if (!constraints.isEmpty()) {
-                            line.append("(").append(String.join(", ", constraints)).append(")");
-                        }
-                        drl.appendLine(line.toString());
+                for (ThenActionDTO action : rule.getThen()) {
+                    if (action.getObject() != null) {
+                        String objectName = action.getObject();
+                        String varName = objectName.substring(0, 1).toLowerCase() + (varSeq++);
+                        Map<String, Object> value = new HashMap<>();
+                        value.put("objectName", objectName);
+                        value.put("varName", varName);
+                        value.put("conditions", null);
+                        objectVarMap.put(objectName, value);
                     }
                 }
 
-                drl.appendLine("    eval(" + globalFlagName + ".get() == false)");
+                List<WhenGroupDTO> whenGroups = rule.getWhen();
+                if (whenGroups != null && !whenGroups.isEmpty()) {
+                    for (WhenGroupDTO whenGroup : whenGroups) {
+                        String objectName = whenGroup.getObject();
+                        String varName = objectName.substring(0, 1).toLowerCase() + (varSeq++);
+                        Map<String, Object> value = new HashMap<>();
+                        value.put("objectName", objectName);
+                        value.put("varName", varName);
+                        value.put("conditions", whenGroup.getConditions());
+                        objectVarMap.put(objectName, value);
+                    }
+                }
+
+                for (Map.Entry<String, Map<String, Object>> entry : objectVarMap.entrySet()) {
+                    String objectName = entry.getKey();
+                    Map<String, Object> value = entry.getValue();
+
+                    StringBuilder line = new StringBuilder("    $" + value.get("varName") + " : " + objectName);
+
+                    List<String> constraints = new ArrayList<>();
+
+                    @SuppressWarnings("unchecked")
+                    List<ConditionDTO> conditions = (List<ConditionDTO>) value.get("conditions");
+
+                    if (conditions != null && !conditions.isEmpty()) {
+                        for (ConditionDTO cond : conditions) {
+                            String expr = "";
+                            if (cond.getValue() != null) {
+                                String condValue = cond.getValue();
+                                if (condValue.matches("-?\\d+(\\.\\d+)?")) {
+                                    expr = cond.getField() + " " + cond.getOperator() + " " + condValue;
+                                } else {
+                                    expr = cond.getField() + " " + cond.getOperator() + " \"" + condValue + "\"";
+                                }
+                            }
+                            constraints.add(expr);
+                        }
+                    } else {
+                        constraints.add("");
+                    }
+
+                    if (!constraints.isEmpty()) {
+                        line.append("(").append(String.join(", ", constraints)).append(")");
+                    }
+                    drl.appendLine(line.toString());
+
+                }
 
                 drl.appendLine("then");
-                drl.appendLine("    " + globalFlagName + ".set(true);");
                 if (rule.getThen() != null) {
                     for (ThenActionDTO action : rule.getThen()) {
                         String obj = action.getObject();
-                        String var = objectVarMap.getOrDefault(obj, obj.substring(0, 1).toLowerCase());
+                        String var = objectVarMap.get(obj).get("varName").toString().toLowerCase();
                         String valueExpressionStr = "null";
                         if (action.getValue() != null) {
                             valueExpressionStr = replaceFieldReferences(action.getValue(), objectVarMap, rule);
@@ -99,13 +108,13 @@ public class DRLHelper {
                         drl.appendLine("    $" + var + "." + action.getAction() + "(" + valueExpressionStr + ");");
                     }
                 }
-                for (Map.Entry<String, String> entry : objectVarMap.entrySet()) {
-                    String obj = entry.getKey();
-                    String var = entry.getValue();
+                for (Map.Entry<String, Map<String, Object>> entry : objectVarMap.entrySet()) {
+                    String objName = entry.getKey();
+                    Map<String, Object> value = entry.getValue();
                     Boolean existKeyInThen = rule.getThen().stream()
-                            .anyMatch(action -> action.getObject() != null && action.getObject().equals(obj));
+                            .anyMatch(action -> action.getObject() != null && action.getObject().equals(objName));
                     if (existKeyInThen)
-                        drl.appendLine("    update($" + var + ");");
+                        drl.appendLine("    update($" + value.get("varName") + ");");
                 }
                 drl.appendLine("end\n");
             }
@@ -120,15 +129,16 @@ public class DRLHelper {
 
     // Helper to replace possible object.field references in params with
     // $<var>.get<Field>()
-    private static String replaceFieldReferences(String expr, Map<String, String> objectVarMap, DroolRuleDTO rule) {
+    private static String replaceFieldReferences(String expr, Map<String, Map<String, Object>> objectVarMap,
+            DroolRuleDTO rule) {
         if (expr == null)
             return "";
 
-        for (Map.Entry<String, String> entry : objectVarMap.entrySet()) {
-            String obj = entry.getKey();
-            String var = entry.getValue();
+        for (Map.Entry<String, Map<String, Object>> entry : objectVarMap.entrySet()) {
+            String objName = entry.getKey();
+            Map<String, Object> value = entry.getValue();
             Boolean existKeyInThen = rule.getThen().stream()
-                    .anyMatch(action -> action.getObject() != null && action.getObject().equals(obj));
+                    .anyMatch(action -> action.getObject() != null && action.getObject().equals(objName));
             if (!existKeyInThen)
                 continue;
 
@@ -138,7 +148,7 @@ public class DRLHelper {
 
             while (matcher.find()) {
                 String field = matcher.group(1);
-                String replacement = "\\$" + var + ".get" + capitalize(field) + "()";
+                String replacement = "\\$" + value.get("varName") + ".get" + capitalize(field) + "()";
                 matcher.appendReplacement(sb, replacement);
             }
             matcher.appendTail(sb);
