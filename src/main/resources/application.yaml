@@ -1,11 +1,11 @@
 server:
-  port: 8080
+  port: 7001
   servlet:
     contextPath: /api
 
 spring:
   application:
-    name: map-properties-service
+    name: drool-management-service
   main:
     allow-bean-definition-overriding: true
   profiles:

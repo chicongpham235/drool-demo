@@ -19,5 +19,9 @@ public class ConditionDTO {
 
     @NotNull
     @NotBlank
+    private String type;
+
+    @NotNull
+    @NotBlank
     private String value;
 }

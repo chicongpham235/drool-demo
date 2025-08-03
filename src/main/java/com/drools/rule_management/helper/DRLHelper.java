@@ -74,6 +74,9 @@ public class DRLHelper {
 
                     if (conditions != null && !conditions.isEmpty()) {
                         for (ConditionDTO cond : conditions) {
+                            if ("API".equals(cond.getType())) {
+                                continue;
+                            }
                             String expr = "";
                             if (cond.getValue() != null) {
                                 String condValue = cond.getValue();
@@ -97,6 +100,29 @@ public class DRLHelper {
                 }
 
                 drl.appendLine("then");
+                List<String> apiConditions = new ArrayList<>();
+                for (Map.Entry<String, Map<String, Object>> entry : objectVarMap.entrySet()) {
+                    Map<String, Object> value = entry.getValue();
+
+                    @SuppressWarnings("unchecked")
+                    List<ConditionDTO> conditions = (List<ConditionDTO>) value.get("conditions");
+
+                    if (conditions != null && !conditions.isEmpty()) {
+                        for (ConditionDTO cond : conditions) {
+                            if (!"API".equals(cond.getType())) {
+                                continue;
+                            }
+                            if (cond.getValue() != null) {
+                                apiConditions.add(
+                                        "$" + value.get("varName") + "." + cond.getField() + " " + cond.getOperator()
+                                                + " " + "callApi(\"" + cond.getValue() + "\")");
+                            }
+                        }
+                    }
+                }
+                if (!apiConditions.isEmpty()) {
+                    drl.appendLine("    if (" + String.join(" && ", apiConditions) + ") {");
+                }
                 if (rule.getThen() != null) {
                     for (ThenActionDTO action : rule.getThen()) {
                         String obj = action.getObject();
@@ -107,6 +133,9 @@ public class DRLHelper {
                         }
                         drl.appendLine("    $" + var + "." + action.getAction() + "(" + valueExpressionStr + ");");
                     }
+                }
+                if (!apiConditions.isEmpty()) {
+                    drl.appendLine("    }");
                 }
                 for (Map.Entry<String, Map<String, Object>> entry : objectVarMap.entrySet()) {
                     String objName = entry.getKey();
